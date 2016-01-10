@@ -136,14 +136,19 @@ class ScreenThread(threading.Thread):
 		if data[0] == "/":
 			cmdWithParam = data.split()
 			command = cmdWithParam[0][1:]
-			parameter = cmdWithParam[1]
-			print command
-			print str(parameter)
+			if len(cmdWithParam) == 1:
+                                parameter = cmdWithParam[1]
+                        elif len(cmdWithParam ) > 2:
+                                print "Command error. There should be only 1 space in command. Example: '/nick JohnSmith' but not '/nick John Smith'."
+			
 			if command == "list":
-                                if parameter == "user" :
-                                        self.screenQueue.put("LSQ")                                        
-                                elif parameter == "session" :
-                                        self.screenQueue.put("LUQ")
+                                if len(cmdWithParam) == 2:                                        
+                                        if parameter == "user" :
+                                                self.screenQueue.put("LSQ")                                        
+                                        elif parameter == "session" :
+                                                self.screenQueue.put("LUQ")
+                                        else:
+                                                print "Command error. Try '/list session' or '/list user'."
                                 else:
                                         print "Command error. Try '/list session' or '/list user'."
 				
@@ -151,14 +156,22 @@ class ScreenThread(threading.Thread):
 				self.screenQueue.put("QUI")
 
 			elif command == "nick":
-				self.screenQueue.put("USR " + str(parameter[0]))
-
+                                if len(cmdWithParam) == 2:                                        
+                                        self.screenQueue.put("USR " + parameter)
+                                else:
+                                        print "Command error. Try '/nick {nick name}'. Example: /nick John"
+                                
 			elif command == "join":
-				
-				self.screenQueue.put("JOS")
+				if len(cmdWithParam) == 2:                                        
+                                        self.screenQueue.put("JOS " + parameter)
+                                else:
+                                        print "Command error. Try '/join {session name}'. Example: /join Pros"
 
 			elif command == "new":
-				self.screenQueue.put("NES")
+				if len(cmdWithParam) == 2:                                        
+                                        self.screenQueue.put("NES " + parameter)
+                                else:
+                                        print "Command error. Try '/new {session name}'. Example: /new Pros"
 
 			elif command == "next":
 				self.screenQueue.put("NXT")

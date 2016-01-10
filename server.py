@@ -8,6 +8,7 @@ import Queue
 import time
 
 user_list = []
+session_list = []
 
 def acceptUser(data): #user accepted to server for the first time(user login)
 	if data[0:3] == "USR":
@@ -30,65 +31,71 @@ class ReadThread (threading.Thread):
 		self.nickname = ""
 
 	def incoming_parser(self, data):
-		
-		data = data.strip()
 
-		if len(data) == 0:
-			return
-
-		elif len(data) < 3:
-			response = 'ER3'
-
-		elif len(data) > 3 and not data[3] == " ":
+                if len(data) > 3 and not data[3] == " ":
 			response = "ERR"
-		
-		elif data[0:3] == 'TIC':
+
+		if len(request) == 0:
+			return
+                
+		requestWithParam = data.split()
+		request = cmdWithParam[0][1:]
+		if len(cmdWithParam) > 1:
+                        parameter = cmdWithParam[1]
+
+                elif request[0:3] == 'TIC':
 			response = 'TOC'		
 
-                elif data[0:3] == "USR": #user changes nickname
-			if data[4:] not in user_list:
+                elif request[0:3] == "USR": #user changes nickname
+			if parameter not in user_list:
 				if(self.nickname in user_list):
 					user_list.remove(self.nickname)
-				newNick = data[4:]
-				user_list.append(newNick)
-				response = "HEL " + newNick
-				self.nickname = newNick
+				user_list.append(parameter)
+				response = "HEL " + parameter
+				self.nickname = parameter
 				 
 			else:
 				response = "REJ"
 		
-		elif data[0:3] == "QUI":
+		elif request[0:3] == "QUI":
 			response = "BYE " + self.nickname
 			self.csoc.send(response)
 			user_list.remove(self.nickname)
-			threadList.remove(self.readThreadID)
+##			threadList.remove(self.readThreadID)
 			return
 
-		elif data[0:3] == "LSQ":
+		elif request[0:3] == "LSQ":
 			response = "LSA " + ":".join(user_list)
 
-		elif data[0:3] == "LUQ":
-			response = "LUA "
+		elif request[0:3] == "LUQ":
+			response = "LUA " + ":".join(session_list)
 	
-		elif data[0:3] == "JOS":
+		elif request[0:3] == "JOS":
 			response = "JOK"
 
-		elif data[0:3] == "NES":
-			response = "SOK/SER"
+		elif request[0:3] == "NES":
+                        if parameter not in session_list:
+				session_list.append(parameter)
+				response = "SOK"
+                        else:
+				response = "SER"
 
-		elif data[0:3] == "RDY":
+		elif request[0:3] == "RDY":
 			response = "NEW"
 
-		elif data[0:3] == "NXT":
+		elif request[0:3] == "NXT":
 			response = "NUM"
 
-		elif data[0:3] == "CNK":
+		elif request[0:3] == "CNK":
 			response = "COK/CER"
 			
-		elif data[0:3] == "TOM":
+		elif request[0:3] == "TOM":
 			response = "TOK/TER"
 			
-		elif data[0:3] == "FIN":
+		elif request[0:3] == "FIN":
+                        #herkes goruntulediyse
+##                        session_list.remove(parameter)
+                        
 			response = "END"
 
 		else:
