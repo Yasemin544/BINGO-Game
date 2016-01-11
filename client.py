@@ -41,10 +41,13 @@ class ReadThread (threading.Thread):
 			return result
 
                 elif(data[0:3] == "LSA"):
-			result = "Users in the session: " + str(data[4:])
+			result = "Sessions: " + str(data[4:])
 
 		elif(data[0:3] == "LUA"):
-			result = "Sessions: " + str(data[4:])
+			result = "Users in the session: " + str(data[4:])
+
+		elif(data[0:3] == "LNA"):
+			result = "You cannot list users before you login a session."
                 
                 elif(data[0:3] == "JOK"):
 			socketQueue.put("RDY")
@@ -153,9 +156,9 @@ class ScreenThread(threading.Thread):
 			if command == "list":
                                 if len(cmdWithParam) == 2:                                        
                                         if parameter == "user" :
-                                                self.screenQueue.put("LSQ")                                        
+                                                self.screenQueue.put("LUQ")                                        
                                         elif parameter == "session" :
-                                                self.screenQueue.put("LUQ")
+                                                self.screenQueue.put("LSQ")
                                         else:
                                                 print "Command error. Try '/list session' or '/list user'."
                                                 return
