@@ -2,10 +2,9 @@
 import sys
 import socket
 import threading
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
 import Queue
 import time
+import random
 
 user_list = []
 session_list = []
@@ -32,77 +31,86 @@ class ReadThread (threading.Thread):
 
 	def incoming_parser(self, data):
 
+                response = 'ERR'
                 if len(data) > 3 and not data[3] == " ":
-			response = "ERR"
+			response = 'ERR'
 
-		if len(request) == 0:
+		if len(data) == 0:
 			return
                 
 		requestWithParam = data.split()
-		request = cmdWithParam[0][1:]
-		if len(cmdWithParam) > 1:
-                        parameter = cmdWithParam[1]
+		request = requestWithParam[0]
+		
+		if len(requestWithParam) > 1:
+                        parameter = requestWithParam[1]
 
-                elif request[0:3] == 'TIC':
+                if request[0:3] == 'TIC':
 			response = 'TOC'		
-
-                elif request[0:3] == "USR": #user changes nickname
+               
+                elif request[0:3] == 'USR': #user changes nickname
 			if parameter not in user_list:
 				if(self.nickname in user_list):
 					user_list.remove(self.nickname)
 				user_list.append(parameter)
-				response = "HEL " + parameter
+				response = 'HEL ' + parameter
 				self.nickname = parameter
 				 
 			else:
-				response = "REJ"
+				response = 'REJ'
 		
-		elif request[0:3] == "QUI":
-			response = "BYE " + self.nickname
+		elif request[0:3] == 'QUI':
+			response = 'BYE ' + self.nickname
 			self.csoc.send(response)
 			user_list.remove(self.nickname)
 ##			threadList.remove(self.readThreadID)
 			return
 
-		elif request[0:3] == "LSQ":
-			response = "LSA " + ":".join(user_list)
+		elif request[0:3] == 'LSQ':
+			response = 'LSA ' + ":".join(user_list)
 
-		elif request[0:3] == "LUQ":
-			response = "LUA " + ":".join(session_list)
+		elif request[0:3] == 'LUQ':
+			response = 'LUA ' + ":".join(session_list)
 	
-		elif request[0:3] == "JOS":
-			response = "JOK"
+		elif request[0:3] == 'JOS':
+			response = 'JOK'
 
-		elif request[0:3] == "NES":
+		elif request[0:3] == 'NES':
                         if parameter not in session_list:
 				session_list.append(parameter)
-				response = "SOK"
+				response = 'SOK'
                         else:
-				response = "SER"
+				response = 'SER'
 
-		elif request[0:3] == "RDY":
-			response = "NEW"
+		elif request[0:3] == 'RDY':
+                        user_count = len(user_list)
+                        cards = []
+                        for i in range(user_count):
+                                card = random.sample(range(1,90), 15)
+                                cards.append(card)
+                        print cards
+                        
+			response = 'NEW ' + str(cards[0])
+			print response
 
-		elif request[0:3] == "NXT":
-			response = "NUM"
+		elif request[0:3] == 'NXT':
+			response = 'NUM'
 
-		elif request[0:3] == "CNK":
-			response = "COK/CER"
+		elif request[0:3] == 'CNK':
+			response = 'COK/CER'
 			
-		elif request[0:3] == "TOM":
-			response = "TOK/TER"
+		elif request[0:3] == 'TOM':
+			response = 'TOK/TER'
 			
-		elif request[0:3] == "FIN":
+		elif request[0:3] == 'FIN':
                         #herkes goruntulediyse
 ##                        session_list.remove(parameter)
                         
-			response = "END"
+			response = 'END'
 
 		else:
-			response = "ERR"
+			response = 'ERR'
 		
-		print "response: "
-		print response
+				
 		self.csoc.send(response)
 		return 
 

@@ -4,23 +4,24 @@ import socket
 import sys
 import threading
 import Queue
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
 import time
+from collections import OrderedDict
 
 nickname = ""
+card = OrderedDict()
 
 class ReadThread (threading.Thread):
-	def __init__(self, name, csoc, sendQueue, screenQueue):
+	def __init__(self, name, csoc, socketQueue, screenQueue):
 		threading.Thread.__init__(self)
 		self.name = name
 		self.csoc = csoc
 		self.nickname = ""
-		self.sendQueue = sendQueue
+		self.socketQueue = socketQueue
 		self.screenQueue = screenQueue
 		
 	def incoming_parser(self, data):
-
+                result = ''
+                                        
 		if(data[0:3] == "TIC"):
 			print "TIC"
 			result = "TIC"
@@ -46,17 +47,19 @@ class ReadThread (threading.Thread):
 			result = "Sessions: " + str(data[4:])
                 
                 elif(data[0:3] == "JOK"):
-			result = "JOK"
+			socketQueue.put("RDY")
 		
                 elif(data[0:3] == "SOK"):
-			print "Message sent to all users"
-			result = "SOK"
+			socketQueue.put("RDY")
 		
 		elif(data[0:3] == "SER"):
 			result = "SER"
 		
 		elif(data[0:3] == "NEW"):
-			result = "NEW"
+                        number_list = (str(data[5:-1])).split(", ")
+                        for i in range(len(number_list)):
+                                card[number_list[i]] = ' '
+                        printCard()
 
 		elif(data[0:3] == "NUM"):
 			result = "NUM"
@@ -83,15 +86,20 @@ class ReadThread (threading.Thread):
 			result = "Please login with /nick command."
 
 		else:
-			result = data
+			return
 		
 		return result
+
+       
 
 	def run(self):
 		while True: #for default client commands
 			data = self.csoc.recv(1024)
 			res = self.incoming_parser(data)
 			print res
+			if res == '':
+                                continue
+			
 			if len(res) > 3 :
 				if(res[0:3] == "CLS"): #close socket signal
 					self.screenQueue.put("Thank you for connecting!")					
@@ -114,7 +122,7 @@ class WriteThread (threading.Thread):
 			if not (self.threadQueue).empty():
 				queue_message = self.threadQueue.get()
 				try:
-					self.csoc.send(queue_message)
+                                       self.csoc.send(queue_message)
 				except socket.error:
 					self.csoc.close()
 					break
@@ -136,10 +144,11 @@ class ScreenThread(threading.Thread):
 		if data[0] == "/":
 			cmdWithParam = data.split()
 			command = cmdWithParam[0][1:]
-			if len(cmdWithParam) == 1:
+			if len(cmdWithParam) == 2:
                                 parameter = cmdWithParam[1]
                         elif len(cmdWithParam ) > 2:
-                                print "Command error. There should be only 1 space in command. Example: '/nick JohnSmith' but not '/nick John Smith'."
+                                print "Command error. There should be only 1 space in the command. Example: '/nick JohnSmith' but not '/nick John Smith'."
+                                return
 			
 			if command == "list":
                                 if len(cmdWithParam) == 2:                                        
@@ -149,35 +158,49 @@ class ScreenThread(threading.Thread):
                                                 self.screenQueue.put("LUQ")
                                         else:
                                                 print "Command error. Try '/list session' or '/list user'."
+                                                return
                                 else:
                                         print "Command error. Try '/list session' or '/list user'."
+                                        return
 				
 			elif command == "quit":
 				self.screenQueue.put("QUI")
 
 			elif command == "nick":
-                                if len(cmdWithParam) == 2:                                        
+                                if len(cmdWithParam) == 2:
                                         self.screenQueue.put("USR " + parameter)
                                 else:
                                         print "Command error. Try '/nick {nick name}'. Example: /nick John"
+                                        return
                                 
 			elif command == "join":
 				if len(cmdWithParam) == 2:                                        
                                         self.screenQueue.put("JOS " + parameter)
                                 else:
                                         print "Command error. Try '/join {session name}'. Example: /join Pros"
+                                        return
 
 			elif command == "new":
 				if len(cmdWithParam) == 2:                                        
                                         self.screenQueue.put("NES " + parameter)
                                 else:
                                         print "Command error. Try '/new {session name}'. Example: /new Pros"
+                                        return
 
 			elif command == "next":
 				self.screenQueue.put("NXT")
 
 			elif command == "close":
-				print close
+                                if len(cmdWithParam) == 2:
+                                        if parameter not in card:
+                                                print "Number " + parameter + " is not in your card."
+                                        else:
+                                                card[parameter] = '* '
+                                        
+                                else:
+                                        print "Command error. Try '/close {number}'. Example: '/close 26'."
+                                
+				printCard()
 
 			elif command == "cinko":
 				self.screenQueue.put("CNK")
@@ -192,6 +215,7 @@ class ScreenThread(threading.Thread):
 				print "Command Error."
 
 		else:
+                        print "else"
 			print data
 		
 
@@ -199,6 +223,13 @@ class ScreenThread(threading.Thread):
 		while True:
                         user_input = raw_input()
                         self.outgoing_parser(user_input)
+def printCard():
+        out = '\nYour card is: \n'
+        for i in range(15):
+                out +=  (str(card.items()[i][0]) + card.items()[i][1])
+                if(i%5 == 4 ):
+                        out += '\n'
+        print out
                         
 
                
