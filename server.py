@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# user_info = {'183.654.25.21': {nick: 'nick'  session: 'session'}}
-# session_info = {'pros': {users: [csoc1, csoc2], cards: [], random_num : [] }  , 'newbies' : [csoc3]}
+# user_info = {socketobj: {'nick': nickname , 'session': sessionname}}
+# session_info = {sessionname: {'cards': [[]], 'random_numbers': [], 'past_numbers': [],  'users': {socketobj: {'state': '', cinko_rows: []}}
 import sys
 import socket
 import threading
