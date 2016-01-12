@@ -1,0 +1,11 @@
+/nick <nickname> 	: Login  
+/quit   		: Quit  
+/list session  		: List sessions in the server 
+/list user  		: List users in the session which the user is playing in right now 
+/join <session name> 	: Join an existing session  
+/new <session name> 	: Create new session 
+/next   		: Ready for next number 
+/close <number> 	: Sign number in the card 
+/cinko   		: Call for 'Cinko'
+/tombala  		: Call for 'Tombala' 
+/help   		: Print all commands
