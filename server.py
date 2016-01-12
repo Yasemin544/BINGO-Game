@@ -7,10 +7,13 @@ import threading
 import Queue
 import time
 import random
+import ast
+import re
+from collections import OrderedDict
 
 user_info = {}
 session_info = {}
-MAX_USER = 2
+MAX_USER = 2 #number of users in a session
 
 def acceptUser(data, csoc): #user accepted to server for the first time(user login)
 	if len(data) > 4:
@@ -47,10 +50,10 @@ class ReadThread (threading.Thread):
                         
                 requestWithParam = data.split()
                 request = requestWithParam[0]
-                        
+                                                      
                 if len(requestWithParam) > 1:
                     parameter = requestWithParam[1]
-
+                   
                 if request[0:3] == 'TIC':
                                         response = 'TOC'		
                        
@@ -81,18 +84,20 @@ class ReadThread (threading.Thread):
                                 response = "LNA" #"You cannot list users before you login a session."
 
                         else:
-                                user_list = self.get_users_of_session()
+                                user_list = self.getUsersofSession()
                                 response = 'LUA ' + ",".join(user_list)
 
                 elif request[0:3] == 'JOS':
                         if parameter in session_info:
-                                if len(session_info[parameter]['users']) < MAX_USER:
-                                        session_info[parameter]['users'][self.csoc] = ''
+                                if len(session_info[parameter]['users']) < MAX_USER:   #save session info
+                                        session_info[parameter]['users'][self.csoc] = {}
+                                        session_info[parameter]['users'][self.csoc]['state'] = '' #initial state
+                                        session_info[parameter]['users'][self.csoc]['cinko_rows'] = []
                                         user_info[self.csoc]['session'] = parameter
                                         self.session = parameter
                                         response = "JOK"
                                 else:
-                                        response = "FUL"
+                                        response = "FUL" #session is full
                         else:
                                 response = "JER"
 
@@ -102,7 +107,9 @@ class ReadThread (threading.Thread):
                         else:
                                 session_info[parameter] = {}
                                 session_info[parameter]['users'] = {}
-                                session_info[parameter]['users'][self.csoc] = ''#initial state
+                                session_info[parameter]['users'][self.csoc] = {}
+                                session_info[parameter]['users'][self.csoc]['state'] = '' 
+                                session_info[parameter]['users'][self.csoc]['cinko_rows'] = []
                                 session_info[parameter]['random_numbers'] = random.sample(range(1, 91), 90)
                                 user_info[self.csoc]['session'] = parameter
                                 self.session = parameter
@@ -125,53 +132,103 @@ class ReadThread (threading.Thread):
                                 
                 elif request[0:3] == 'NXT':
                         user_count = len(session_info[self.session]['users'])
-                        session_info[self.session]['users'][self.csoc] = '1'
-                        print session_info
+                        session_info[self.session]['users'][self.csoc]['state'] = '1' #user is ready for next number
+                        
                         while True:
-                                ready_count = session_info[self.session]['users'].values().count('1')
+                                ready_count = self.countReadyClients()
                                 if ready_count == user_count:
                                         break
-                        print session_info
+                        
                         if ready_count == user_count:
                                 next_number = session_info[self.session]['random_numbers'].pop()
                                 session_info[self.session]['past_numbers'] = []
                                 session_info[self.session]['past_numbers'].append(next_number)
                                 response = "NUM " + str(next_number)
-                                #send to all clients:
-                                #broadcast_response(self.session, res)
+                                
                                 keys = session_info[self.session]['users'].keys()
                                 for key in keys:
-                                        session_info[self.session]['users'][key] = '0'
-                                
+                                        session_info[self.session]['users'][key]['state'] = '0'  #user's next state is 0 for next number
+                              
                                         
-                elif request[0:3] == 'CNK':
-                        response = 'COK/CER'
+                elif request[0:3] == 'CNK': #session info holds 'cinko_rows' for cinko state for every user in the session
+                        parameter = data[4:]
+                        values = re.search(r"OrderedDict\((.*)\)", parameter).group(1)
+                        card = OrderedDict(ast.literal_eval(values)) #string to orderedDict
+                        cinko_list = self.checkCinko(card)
+                        session_info[self.session]['users'][self.csoc]['cinko_rows'] = cinko_list
+                        
+                        if cinko_list:
+                                response = "COK " + self.nickname + " " + ":".join(cinko_list)
+                        else:
+                                response = 'CER'
                                 
                 elif request[0:3] == 'TOM':
-                        response = 'TOK/TER'
+                        parameter = data[4:]
+                        values = re.search(r"OrderedDict\((.*)\)", parameter).group(1)
+                        card = OrderedDict(ast.literal_eval(values)) 
+                        cinko_list = self.checkCinko(card)
+                        session_info[self.session]['users'][self.csoc]['cinko_rows'] = cinko_list
+                        if len(cinko_list) == 3:
+                                response = "TOK " + self.nickname
+
+                        else:
+                                response = "TER"
                                 
                 elif request[0:3] == 'FIN':
-                               #herkes goruntulediyse
-        ##                        session_list.remove(parameter)
-                                
+                        #todo: remove session if every user displayed game over message
+                               
                         response = 'END'
 
                 else:
                         response = 'ERR'
                         
                 print response
-                if response[0:3] in ['NUM', 'COK', 'TOK']:
-                        broadcast_response(self.session, response)
+                if response[0:3] in ['NUM', 'COK', 'TOK']: 
+                        broadcastResponse(self.session, response)
                 else:
                         self.csoc.send(response)
                 return 
 		
-        def get_users_of_session(self):
+        def getUsersofSession(self):
 		client_list = session_info[self.session].keys()
 		user_list = []
 		for client in client_list:
 			user_list.append(user_info[client]['nick'])
                 return user_list
+
+        def countReadyClients(self):
+                clients = session_info[self.session]['users'].keys()
+                count = 0
+                for csoc in clients:
+                        state = session_info[self.session]['users'][csoc]['state']
+                        if state == '1':
+                                count += 1
+                return count
+        
+        def checkCinko(self, card):
+            loop = 0
+            first = 0
+            second = 0
+            third = 0
+            cinkos = []
+            for state in card.values():
+                if state == '* ':
+                    if loop >= 0 and loop <5:
+                        first += 1
+                    if loop >= 5 and loop <10:
+                        second += 1
+                    if loop >= 10 and loop <15:
+                        third +=1
+                loop += 1
+
+            if first == 5:
+                cinkos.append("1")
+            if second == 5:
+                cinkos.append("2")
+            if third == 5:
+                cinkos.append("3")
+            return cinkos
+                
 		
 	def run(self):
 		while True: #for default client commands
@@ -180,7 +237,7 @@ class ReadThread (threading.Thread):
 			self.incoming_parser(data) 
 			
 
-def broadcast_response(session, response):
+def broadcastResponse(session, response):
 	clients = session_info[session]['users'].keys()
 	for client in clients :
 		client.send(response)

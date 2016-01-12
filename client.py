@@ -6,6 +6,8 @@ import threading
 import Queue
 import time
 from collections import OrderedDict
+import re
+import ast
 
 nickname = ""
 card = OrderedDict()
@@ -24,10 +26,15 @@ class ReadThread (threading.Thread):
 	def incoming_parser(self, data):
                 result = ''
                 parameter = ''
+                parameter2 = ''
                 cmdWithParam = data.split()
 		command = cmdWithParam[0][1:]
 		if len(cmdWithParam) == 2:
                         parameter = cmdWithParam[1]
+                if len(cmdWithParam) == 3:
+                        
+                        parameter = cmdWithParam[1]
+                        parameter2 = cmdWithParam[2]
                         
 		if(data[0:3] == "TIC"):
 			socketQueue.put("TOC")
@@ -36,42 +43,42 @@ class ReadThread (threading.Thread):
 			result = "Connected to server"
 
 		elif(data[0:3] == "HEL"):
-			result = "Your nickname: " +  str(parameter)
+			print "Your nickname: " +  str(parameter)
 			
 		elif(data[0:3] == "REJ"):
-			result = "Nickname already exists."
+			print "Nickname already exists."
 
 		elif(data[0:3] == "BYE"):
 			result = "BYE" #close socket signal
 			
                 elif(data[0:3] == "LSA"):
                         if(parameter == ''):
-                                "No session found"
+                                print "No session found"
                         else:
-                                result = "Sessions: " +  str(parameter)
+                                print "Sessions: " +  str(parameter)
 
 		elif(data[0:3] == "LUA"):
                         if(parameter == ''):
-                                "No user in the session"
+                                print "No user in the session"
                         else:
-                                result = "Users in the session: " +  str(parameter)
+                                print "Users in the session: " +  str(parameter)
 
 		elif(data[0:3] == "LNA"):
-			result = "You cannot list users before you login a session."
+			print "You cannot list users before you login a session."
                 
                 elif(data[0:3] == "JOK"):
-                        result =  "Waiting for other users to login..."
+                        print "Waiting for other users to login..."
 			socketQueue.put("RDY")
 
 		elif(data[0:3] == "FUL"):
-                        result =  "Session is full. Join/create another session."
+                        print "Session is full. Join/create another session."
 					
                 elif(data[0:3] == "SOK"):
-                        result =  "Waiting for other users to login..."
+                        print "Waiting for other users to login..."
 			socketQueue.put("RDY")
 		
 		elif(data[0:3] == "SER"):
-			result = "Session name already exists."
+			print "Session name already exists."
 		
 		elif(data[0:3] == "NEW"):
                         number_list = (str(data[5:-1])).split(", ")
@@ -87,25 +94,34 @@ class ReadThread (threading.Thread):
                         
 						
 		elif(data[0:3] == "COK"):
-                          result = "COK"
+                        cinko_list = parameter2.split(":")
+                        size = len(cinko_list)
+                        if size == 1:
+                                result = "1st"
+                        elif size == 2:
+                                result = "2nd"
+                        elif size == 3:
+                                result = "3rd"  
 
+                        print result + " Cinko. User: " + parameter
+                                                
 		elif(data[0:3] == "CER"):
-			result = "CER"
-			
+                        print "Wrong Cinko. You must close all numbers in a row."
+						
 		elif(data[0:3] == "TOK"):
-			result = "TOK"
-			
+                        print "TOMBALA. Game over. Winner: " + parameter
+						
 		elif(data[0:3] == "TER"):
-			result = "TER"
-			
+                        print "Wrong Tombala. You must close all numbers."
+						
 		elif(data[0:3] == "END"):
-			result = "END"
+			print "END"
 		
 		elif(data[0:3] == "ERR"):
-			result = "Incorrect command for server"
+			print "Incorrect command for server"
 
                 elif(data[0:3] == "ERL"):
-			result = "Please login with /nick command."
+			print "Please login with /nick command."
 
 		else:
 			return
@@ -119,9 +135,7 @@ class ReadThread (threading.Thread):
 			res = self.incoming_parser(data)
                         if res == '':
                                 continue
-                        print res
-			
-			if len(res) > 3 :
+                        if len(res) > 3 :
 				if(res[0:3] == "BYE"): #close socket signal
 					print "Thank you for connecting!"
 					self.csoc.close()
@@ -211,21 +225,25 @@ class ScreenThread(threading.Thread):
 
 			elif command == "close":
                                 if len(cmdWithParam) == 2:
+                                        
 
                                         if parameter not in past_num_list:
                                              print "You can only close " + ','.join(past_num_list)
                                         
                                         if parameter not in card:
                                                 print "Number " + parameter + " is not in your card."
-                                        else:
-                                                card[parameter] = '* '
+                                                
+                                        if parameter in card:
                                         
+                                                card[parameter] = '* '
+                                          
                                 else:
                                         print "Command error. Try '/close {number}'. Example: '/close 26'."
                                 
 				printCard()
 
 			elif command == "cinko":
+                                print "CNK " + str(card)
 				self.screenQueue.put("CNK " + str(card))
 
 			elif command == "tombala":
