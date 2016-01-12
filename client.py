@@ -9,6 +9,8 @@ from collections import OrderedDict
 
 nickname = ""
 card = OrderedDict()
+cinko_count = 0
+past_num_list = []
 
 class ReadThread (threading.Thread):
 	def __init__(self, name, csoc, socketQueue, screenQueue):
@@ -21,54 +23,71 @@ class ReadThread (threading.Thread):
 		
 	def incoming_parser(self, data):
                 result = ''
-                                        
+                parameter = ''
+                cmdWithParam = data.split()
+		command = cmdWithParam[0][1:]
+		if len(cmdWithParam) == 2:
+                        parameter = cmdWithParam[1]
+                        
 		if(data[0:3] == "TIC"):
-			print "TIC"
-			result = "TIC"
+			socketQueue.put("TOC")
 
 		elif(data[0:3] == "TOC"):
 			result = "Connected to server"
 
 		elif(data[0:3] == "HEL"):
-			nickname = data[4:]
-			result = "New nickname: " + str(nickname)
-
+			result = "Your nickname: " +  str(parameter)
+			
 		elif(data[0:3] == "REJ"):
 			result = "Nickname already exists."
 
 		elif(data[0:3] == "BYE"):
-			result = "CLS" #close socket signal
-			return result
-
+			result = "BYE" #close socket signal
+			
                 elif(data[0:3] == "LSA"):
-			result = "Sessions: " + str(data[4:])
+                        if(parameter == ''):
+                                "No session found"
+                        else:
+                                result = "Sessions: " +  str(parameter)
 
 		elif(data[0:3] == "LUA"):
-			result = "Users in the session: " + str(data[4:])
+                        if(parameter == ''):
+                                "No user in the session"
+                        else:
+                                result = "Users in the session: " +  str(parameter)
 
 		elif(data[0:3] == "LNA"):
 			result = "You cannot list users before you login a session."
                 
                 elif(data[0:3] == "JOK"):
+                        result =  "Waiting for other users to login..."
 			socketQueue.put("RDY")
-		
+
+		elif(data[0:3] == "FUL"):
+                        result =  "Session is full. Join/create another session."
+					
                 elif(data[0:3] == "SOK"):
+                        result =  "Waiting for other users to login..."
 			socketQueue.put("RDY")
 		
 		elif(data[0:3] == "SER"):
-			result = "SER"
+			result = "Session name already exists."
 		
 		elif(data[0:3] == "NEW"):
                         number_list = (str(data[5:-1])).split(", ")
                         for i in range(len(number_list)):
                                 card[number_list[i]] = ' '
+                        print "Game has started."
                         printCard()
-
+                        
 		elif(data[0:3] == "NUM"):
-			result = "NUM"
-			
+                        past_num_list.append(parameter)
+                        print "Next number is: " + str(parameter)
+                        printCard()
+                        
+						
 		elif(data[0:3] == "COK"):
-                        result = "COK"
+                          result = "COK"
 
 		elif(data[0:3] == "CER"):
 			result = "CER"
@@ -83,7 +102,7 @@ class ReadThread (threading.Thread):
 			result = "END"
 		
 		elif(data[0:3] == "ERR"):
-			result = "Incorrect command sent to server"
+			result = "Incorrect command for server"
 
                 elif(data[0:3] == "ERL"):
 			result = "Please login with /nick command."
@@ -93,37 +112,33 @@ class ReadThread (threading.Thread):
 		
 		return result
 
-       
-
 	def run(self):
 		while True: #for default client commands
+                        res = ''
 			data = self.csoc.recv(1024)
 			res = self.incoming_parser(data)
-			print res
-			if res == '':
+                        if res == '':
                                 continue
+                        print res
 			
 			if len(res) > 3 :
-				if(res[0:3] == "CLS"): #close socket signal
-					self.screenQueue.put("Thank you for connecting!")					
+				if(res[0:3] == "BYE"): #close socket signal
+					print "Thank you for connecting!"
 					self.csoc.close()
-					quit()
 					break
-			if(res in ["TIC","MOK","SOK"]):
-				continue
-			self.screenQueue.put(res)			
+				
 
 class WriteThread (threading.Thread):
-	def __init__(self, name, csoc, threadQueue):
+	def __init__(self, name, csoc, socketQueue):
 		threading.Thread.__init__(self)
 		self.name = name
 		self.csoc = csoc
-		self.threadQueue = threadQueue
+		self.socketQueue = socketQueue
 		
 	def run(self):
 		while True:
-			if not (self.threadQueue).empty():
-				queue_message = self.threadQueue.get()
+			if not (self.socketQueue).empty():
+				queue_message = self.socketQueue.get()
 				try:
                                        self.csoc.send(queue_message)
 				except socket.error:
@@ -132,12 +147,12 @@ class WriteThread (threading.Thread):
 
 
 class ScreenThread(threading.Thread):
-        def __init__(self, name, csoc, screenQueue, threadQueue):
+        def __init__(self, name, csoc, screenQueue, socketQueue):
 		threading.Thread.__init__(self)
 		self.name = name
 		self.csoc = csoc
 		self.screenQueue = screenQueue
-		self.threadQueue = threadQueue
+		self.socketQueue = socketQueue
 
 	def outgoing_parser(self, data):
 		
@@ -191,10 +206,15 @@ class ScreenThread(threading.Thread):
                                         return
 
 			elif command == "next":
+                                print "Waiting for other users..."
 				self.screenQueue.put("NXT")
 
 			elif command == "close":
                                 if len(cmdWithParam) == 2:
+
+                                        if parameter not in past_num_list:
+                                             print "You can only close " + ','.join(past_num_list)
+                                        
                                         if parameter not in card:
                                                 print "Number " + parameter + " is not in your card."
                                         else:
@@ -206,21 +226,22 @@ class ScreenThread(threading.Thread):
 				printCard()
 
 			elif command == "cinko":
-				self.screenQueue.put("CNK")
+				self.screenQueue.put("CNK " + str(card))
 
 			elif command == "tombala":
-				self.screenQueue.put("TOM")
+				self.screenQueue.put("TOM " + str(card))
 
 			elif command == "help":
-                                print "help"
+                                f = open("help.txt", 'r')
+                                for line in f:
+                                        print line
 				
 			else:
-				print "Command Error."
+				print "Command Error. Please type /help for commands."
 
 		else:
-                        print "else"
-			print data
-		
+                        print "Command error. Please type /help for commands."
+					
 
 	def run(self):
 		while True:
@@ -235,7 +256,11 @@ def printCard():
         print out
                         
 
-               
+print "\nWelcome aboard! The list of commands given below: \n"
+f = open("help.txt", 'r')
+for line in f:
+        print line
+             
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 host = socket.gethostname()
 

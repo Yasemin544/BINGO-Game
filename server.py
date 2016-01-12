@@ -10,6 +10,7 @@ import random
 
 user_info = {}
 session_info = {}
+MAX_USER = 2
 
 def acceptUser(data, csoc): #user accepted to server for the first time(user login)
 	if len(data) > 4:
@@ -57,8 +58,8 @@ class ReadThread (threading.Thread):
                         if parameter not in user_info:
                                 if(self.nickname in user_info):
                                         del user_info[self.nickname]  #user changes nickname
-                                user_info[csoc]['nick'] = parameter
-                                user_info[csoc]['session'] = ''
+                                user_info[self.csoc]['nick'] = parameter
+                                user_info[self.csoc]['session'] = ''
                                 response = 'HEL ' + parameter
                                 self.nickname = parameter
                         else:
@@ -85,15 +86,10 @@ class ReadThread (threading.Thread):
 
                 elif request[0:3] == 'JOS':
                         if parameter in session_info:
-                                if len(session_info[parameter]) < 3:
+                                if len(session_info[parameter]['users']) < MAX_USER:
                                         session_info[parameter]['users'][self.csoc] = ''
-                                        user_info[csoc]['session'] = parameter
+                                        user_info[self.csoc]['session'] = parameter
                                         self.session = parameter
-                                                                                
-                                        print "ses"
-                                        print session_info
-                                        print "user"
-                                        print user_info
                                         response = "JOK"
                                 else:
                                         response = "FUL"
@@ -108,45 +104,45 @@ class ReadThread (threading.Thread):
                                 session_info[parameter]['users'] = {}
                                 session_info[parameter]['users'][self.csoc] = ''#initial state
                                 session_info[parameter]['random_numbers'] = random.sample(range(1, 91), 90)
-                                user_info[csoc]['session'] = parameter
-                                print session_info
+                                user_info[self.csoc]['session'] = parameter
                                 self.session = parameter
                                 response = "SOK"
                                 
                 elif request[0:3] == 'RDY':
-                        print "session_info", session_info
-                        print "user info", user_info
-                        print "user in sesion", session_info[self.session]['users']
                         while True:
                                 user_count = len(session_info[self.session]['users'])
-                                if user_count == 3: 
+                                if user_count == MAX_USER: 
                                         break
-                        #user_count = len(session_info[session])
-                        session_info['cards'] = random.sample(range(1, 91), 90)
-                        if user_count == 3:
+                        session_info[self.session]['random_numbers'] = random.sample(range(1, 91), 90)
+                        if user_count == MAX_USER:
                                 cards = []
                                 for i in range(user_count):
                                         card = random.sample(range(1,91), 15)
                                         cards.append(card)
-                                print cards
                                 session_info[self.session]['cards'] = cards
                                                         
-                                response = 'NEW ' + str(cards[0])
-                                print response
-
+                                response = 'NEW ' + str(cards.pop())
+                                
                 elif request[0:3] == 'NXT':
-                        session_info[session][csoc] = '1'
-                        ready_count = session_info[session].values().count('1')
-                        user_count = len(session_info[session])
+                        user_count = len(session_info[self.session]['users'])
+                        session_info[self.session]['users'][self.csoc] = '1'
+                        print session_info
+                        while True:
+                                ready_count = session_info[self.session]['users'].values().count('1')
+                                if ready_count == user_count:
+                                        break
+                        print session_info
                         if ready_count == user_count:
-                                next_number = session_info['random_numbers'].pop()
-                                response = "NEW ", next_number
+                                next_number = session_info[self.session]['random_numbers'].pop()
+                                session_info[self.session]['past_numbers'] = []
+                                session_info[self.session]['past_numbers'].append(next_number)
+                                response = "NUM " + str(next_number)
                                 #send to all clients:
-                                broadcast_response(self.session, response)
-                                key = session_info[session].keys()
+                                #broadcast_response(self.session, res)
+                                keys = session_info[self.session]['users'].keys()
                                 for key in keys:
-                                        session_info[session][key] = '0'
-                                return
+                                        session_info[self.session]['users'][key] = '0'
+                                
                                         
                 elif request[0:3] == 'CNK':
                         response = 'COK/CER'
@@ -163,8 +159,11 @@ class ReadThread (threading.Thread):
                 else:
                         response = 'ERR'
                         
-                print response         
-                self.csoc.send(response)
+                print response
+                if response[0:3] in ['NUM', 'COK', 'TOK']:
+                        broadcast_response(self.session, response)
+                else:
+                        self.csoc.send(response)
                 return 
 		
         def get_users_of_session(self):
@@ -182,7 +181,7 @@ class ReadThread (threading.Thread):
 			
 
 def broadcast_response(session, response):
-	clients = session_info[session].keys()
+	clients = session_info[session]['users'].keys()
 	for client in clients :
 		client.send(response)
 	
